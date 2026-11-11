@@ -179,7 +179,7 @@ ShareDoctor 0.2.0 - Windows file sharing helper
   4  Stop sharing a folder
   Q  Quit
 ```
-An invalid choice re-prompts. Options 1 and 4 need admin (section 9.0).
+An invalid choice re-prompts. Options 1 and 4 need admin (section 9.0). Option 3 always prints text, even with `-Json`.
 
 ---
 
@@ -188,6 +188,7 @@ An invalid choice re-prompts. Options 1 and 4 need admin (section 9.0).
 ### 9.0 Elevation (Host and Remove)
 If the current process isn't elevated, ShareDoctor re-launches itself with `Start-Process <current exe> -Verb RunAs`, passing `-NoProfile -ExecutionPolicy Bypass -File "<script>" -Mode <mode> -Relaunched` plus `-Path`, `-ShareName`, `-UserName`, `-ReadOnly` and `-Yes` when they are set.
 - Wrap each value in double quotes. **Double a trailing backslash** (`"D:\"` becomes `"D:\\"`), because otherwise it escapes the closing quote.
+- Make `-Path` absolute (relative to the current folder) before passing it, because the elevated window starts in `C:\Windows\System32`.
 - **Never pass the password** across. The elevated window prompts for it.
 - If the user declines UAC, print "Administrator permission was not given, so nothing was changed." and exit 1.
 - Build the argument string in a pure function, `Get-ElevationArguments`, so it can be unit-tested.
@@ -197,6 +198,7 @@ If the current process isn't elevated, ShareDoctor re-launches itself with `Star
    - the folder must exist; resolve it to a full path
    - it must be a local drive path (`^[A-Za-z]:\\`); reject UNC paths
    - reject the system drive root and anything under `%windir%`
+   - reject a path where any part is a junction or symbolic link: its target could be anywhere, even under `%windir%`, and folder permissions would land on the target
    - for the root of a non-system drive, warn: "This shares the whole D: drive. Setting permissions on a large drive can take a few minutes." Then ask for confirmation.
 2. **Share name.** The default is the folder name with these characters removed: `\ / : * ? " < > | [ ] + = ; ,`. Cap it at 80 characters. If it ends up empty, use `Shared`. A drive root gives `Drive<Letter>`, for example `DriveD`. Prompt with the default (`Share name other PCs will see [Media]`). Validate with `^[^\\/:*?"<>|]{1,80}$`.
 3. **Share account.** Validate the username: 1-20 characters, none of `\ / [ ] : ; | = , + * ? < > @ "`, and not ending in `.`.
@@ -205,7 +207,7 @@ If the current process isn't elevated, ShareDoctor re-launches itself with `Star
    - **If it exists (with the marker):** reuse it and enable it if disabled. If `-Password` is given, set it. Otherwise offer to set a new password (default **No**); with `-Yes` the current password is kept.
    - **If it doesn't:** take `-Password` or prompt twice. Reject empty ("Windows never allows blank passwords over the network"). Reject a `"` character, because it breaks `cmdkey`. The two entries must match. Then run `New-LocalUser -PasswordNeverExpires -AccountNeverExpires -UserMayNotChangePassword -Description '<marker>'`.
    - Add the account to Users with `Add-LocalGroupMember -SID S-1-5-32-545`, ignoring the "already a member" error (`FullyQualifiedErrorId` matches `MemberExists`).
-   - **Hide it from the sign-in screen** (section 5) and print: "'shareuser' is hidden from the sign-in screen, so this PC still starts straight into your account."
+   - **Hide it from the sign-in screen** (section 5) and print: "'shareuser' is hidden from the sign-in screen, so this PC still starts straight into your account." Write the `UserList` value **before** creating or changing the account, so a visible account never exists. If that fails, stop with exit 1 before touching the account. If account creation then fails, remove the value again.
 4. **Network type.** For each `Get-NetConnectionProfile`:
    - `Public`: ask "Network 'X' is set to Public, which hides this PC and blocks sharing. Set it to Private? Only do this on a network you trust (home/office)." If yes, run `Set-NetConnectionProfile -InterfaceIndex <i> -NetworkCategory Private`. If no, warn that other PCs won't reach the share over it.
    - `DomainAuthenticated`: leave it alone and note that it is managed by IT.
@@ -214,7 +216,7 @@ If the current process isn't elevated, ShareDoctor re-launches itself with `Star
 6. **Services.** For `LanmanServer`, `FDResPub` and `fdPHost`: if the startup type isn't Automatic, set it to Automatic, and start the service if it isn't running. A failure is a warning, not an abort.
 7. **Share.**
    - If a share with that name already exists for a **different** path, fail: "A share named 'X' already exists for <path>. Run again with a different -ShareName."
-   - If it exists for the **same** path, run `Grant-SmbShareAccess -AccountName "<PC>\<user>" -AccessRight Change` (or `Read`) `-Force`.
+   - If it exists for the **same** path, run `Grant-SmbShareAccess -AccountName "<PC>\<user>" -AccessRight Change` (or `Read`) `-Force`. If the share still allows Everyone (SID `S-1-1-0`, from an older setup), warn and offer (default **Yes**) to remove it with `Revoke-SmbShareAccess`, mentioning that devices relying on guest access will stop working.
    - Otherwise run `New-SmbShare -Name -Path -Description 'Shared with ShareDoctor'` with `-ChangeAccess` (or `-ReadAccess` when `-ReadOnly`) set to `"<PC>\<user>"` only.
 8. **Folder permissions.** Run `icacls "<path>" /grant "<PC>\<user>:(OI)(CI)M"`, with `RX` instead of `M` for read-only. A non-zero exit code is a warning ("drives formatted FAT32/exFAT have no permissions - that is fine"), not a failure.
 9. **Summary.** Print:
@@ -232,7 +234,7 @@ Host must be **idempotent**: running it again for the same folder succeeds witho
 4. **Port check.** TCP 445 with a 3-second timeout (`TcpClient.BeginConnect` plus `WaitOne`). If it's closed, fail with the advice for code 53.
 5. **Old connections.** Run `Get-SmbMapping` and keep entries whose `RemotePath` matches `\\<target>\*`. List them and offer to disconnect them (`net use <LocalPath or RemotePath> /delete /y`), because they cause error 1219.
 6. **Username.** The default is `<target>\<UserName>`. If the typed name contains no `\` or `@`, prefix it with `<target>\`. Take the password from `-Password` or a prompt; if it's empty, show the advice for code 1327.
-7. **Save the credential.** Run `cmdkey /add:<target> /user:<user> /pass:<pw>`, then clear the plain-text variable. Tell the user it's saved in Windows Credential Manager. The credential is tied to the exact name or IP typed, so the user should keep using the same one.
+7. **Save the credential.** Refuse a password containing `"` (it cannot be passed to `cmdkey` intact) and point to the share account instead. Where PowerShell quotes native arguments the old way (Windows PowerShell 5.1, PowerShell 7.0-7.2), double the trailing backslashes of an argument that contains a space. Run `cmdkey /add:<target> /user:<user> /pass:<pw>`, then clear the plain-text variable. Tell the user it's saved in Windows Credential Manager. The credential is tied to the exact name or IP typed, so the user should keep using the same one.
 8. **Test access** with `Test-ShareAccess` (section 9.5). On failure, show the advice. For sign-in errors (5, 86, 1326, 1327, 1330, 1331, 1909), offer to delete the saved credential (`cmdkey /delete:<target>`).
 9. **Drive letter.** Use `-DriveLetter` if given. Otherwise, unless `-NoDriveLetter` is set, offer the first free letter from `Z` down to `E`, skipping existing drives and persistent mappings. Map it with `net use X: \\target\share /persistent:yes`.
 10. Open File Explorer at the drive or UNC path, unless `-NoOpen` is set.
@@ -375,7 +377,8 @@ Needs admin and **makes real changes**. It runs in CI on `windows-latest`, which
 4. Run `-Mode Connect -Yes -Computer $env:COMPUTERNAME -ShareName SDTest -UserName sdtest -Password <pw> -NoDriveLetter -NoOpen`. Expect exit 0, and `Test-ShareAccess` returns 0.
 5. Run `-Mode Diagnose -Yes -Json -Computer $env:COMPUTERNAME -ShareName SDTest`. The JSON has no Fail for the share access check.
 6. Run `-Mode Remove -Yes -ShareName SDTest -UserName sdtest`. The share, the account and the UserList value are all gone.
-7. `AfterAll` **always** cleans up, even after a failure: `Remove-SmbShare`, `Remove-LocalUser`, `cmdkey /delete`, the registry value and the temp folder.
+7. `AfterAll` **always** cleans up, even after a failure: `Remove-SmbShare`, `Remove-LocalUser`, `cmdkey /delete`, the registry value and the temp folder. It also restores what Host may have changed (from a snapshot taken in `BeforeAll`): Public network types, firewall rules that were off, and service startup types and states.
+   The test connects to `127.0.0.1` rather than the PC name, so it can never replace a sign-in saved for the PC's own name, and it refuses to run if a sign-in for `127.0.0.1` is already saved.
 
 If loopback with alternate credentials turns out unreliable on the runner, fall back to `New-SmbMapping -RemotePath -UserName -Password` for step 4's access test, and record that in `docs/TESTING.md`.
 

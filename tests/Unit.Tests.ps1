@@ -252,6 +252,34 @@ Describe 'Test-SharePath' {
         ConvertTo-CleanPath -Path 'D:' | Should -BeExactly 'D:\'
         ConvertTo-CleanPath -Path '  "D:\Media"  ' | Should -BeExactly 'D:\Media'
     }
+
+    It 'refuses a junction to another folder, and folders reached through it' {
+        $real = Join-Path -Path $TestDrive -ChildPath 'RealFolder'
+        [void][System.IO.Directory]::CreateDirectory((Join-Path -Path $real -ChildPath 'Sub'))
+        $link = Join-Path -Path $TestDrive -ChildPath 'LinkToReal'
+        $null = & cmd.exe /c mklink /J "$link" "$real"
+        try {
+            $check = Test-SharePath -Path $link
+            $check.Ok | Should -BeFalse
+            $check.Reason | Should -Match 'link'
+            (Test-SharePath -Path (Join-Path -Path $link -ChildPath 'Sub')).Ok | Should -BeFalse
+            (Test-SharePath -Path $real).Ok | Should -BeTrue
+        } finally {
+            [System.IO.Directory]::Delete($link)   # removes only the link, never the target
+        }
+    }
+
+    It 'makes a typed folder absolute before passing it to the administrator window' {
+        Push-Location -LiteralPath $TestDrive
+        try {
+            Resolve-TypedPath -Path '.\Media' | Should -BeExactly (Join-Path -Path $TestDrive -ChildPath 'Media')
+        } finally {
+            Pop-Location
+        }
+        Resolve-TypedPath -Path 'D:' | Should -BeExactly 'D:\'
+        Resolve-TypedPath -Path '\\server\share' | Should -BeExactly '\\server\share'
+        Resolve-TypedPath -Path '' | Should -BeExactly ''
+    }
 }
 
 Describe 'Name validation' {
@@ -330,6 +358,18 @@ Describe 'Get-ElevationArguments' {
 
     It 'refuses values containing a double quote' {
         { Get-ElevationArguments -ScriptPath 'C:\x.ps1' -Mode Host -Path 'D:\a"b' } | Should -Throw
+    }
+
+    It 'doubles trailing backslashes of native arguments with spaces only under legacy quoting' {
+        Format-NativeArgument -Value '/pass:ab c\' -LegacyQuoting $true | Should -BeExactly '/pass:ab c\\'
+        Format-NativeArgument -Value '/pass:ab c\\' -LegacyQuoting $true | Should -BeExactly '/pass:ab c\\\\'
+        Format-NativeArgument -Value '/pass:abc\' -LegacyQuoting $true | Should -BeExactly '/pass:abc\'
+        Format-NativeArgument -Value '/pass:ab c\' -LegacyQuoting $false | Should -BeExactly '/pass:ab c\'
+    }
+
+    It 'knows which PowerShell versions quote native arguments the old way' {
+        $expected = ($PSVersionTable.PSVersion.Major -lt 7) -or ("$(Get-Variable -Name PSNativeCommandArgumentPassing -ValueOnly -ErrorAction SilentlyContinue)" -in '', 'Legacy')
+        Test-LegacyArgumentPassing | Should -Be $expected
     }
 }
 
@@ -511,6 +551,7 @@ Describe 'Host mode' {
         }
         Mock Get-Service { Get-TestService -Name "$Name" }
         Mock Get-NetIPAddress { [pscustomobject]@{ IPAddress = '192.168.1.20' } }
+        Mock Get-SmbShareAccess {}
         # Test-Path stays real: it only reads. New-Item and New-ItemProperty are mocked.
         Mock Invoke-Native { [pscustomobject]@{ ExitCode = 0; Output = '' } }
     }
@@ -701,9 +742,53 @@ Describe 'Host mode' {
         Should -Invoke New-SmbShare -Times 1 -Exactly -ParameterFilter { $Name -eq 'Media' }
     }
 
-    It 'returns 1 when the account cannot be hidden from the sign-in screen' {
+    It 'stops before creating the account when it cannot be hidden from the sign-in screen' {
         Mock New-ItemProperty { throw 'Access is denied' }
         (Invoke-TestHost).ExitCode | Should -Be 1
+        foreach ($command in 'New-LocalUser', 'Set-LocalUser', 'Enable-LocalUser', 'Set-NetConnectionProfile', 'New-SmbShare') {
+            Should -Invoke $command -Times 0 -Exactly
+        }
+    }
+
+    It 'hides the name before it creates the account' {
+        $script:Order = [System.Collections.Generic.List[string]]::new()
+        Mock New-ItemProperty { $script:Order.Add('hide') }
+        Mock New-LocalUser { $script:Order.Add('create') }
+        $null = Invoke-TestHost
+        $script:Order | Should -Be @('hide', 'create')
+    }
+
+    It 'takes the hidden entry back when Windows refuses to create the account' {
+        Mock New-LocalUser { throw 'The password does not meet the password policy requirements.' }
+        (Invoke-TestHost).ExitCode | Should -Be 1
+        Should -Invoke Remove-ItemProperty -Times 1 -Exactly -ParameterFilter { $Path -contains $SignInListKey -and $Name -contains 'shareuser' }
+        Should -Invoke New-SmbShare -Times 0 -Exactly
+    }
+
+    It 'offers to remove Everyone from a reused share' {
+        Mock Get-SmbShare { [pscustomobject]@{ Name = 'Media'; Path = $script:FolderFull } }
+        Mock Get-SmbShareAccess { [pscustomobject]@{ AccountName = (Get-EveryoneAccountName); AccessControlType = 'Allow'; AccessRight = 'Full' } }
+        (Invoke-TestHost).ExitCode | Should -Be 0
+        Should -Invoke Revoke-SmbShareAccess -Times 1 -Exactly -ParameterFilter { $Name -contains 'Media' -and $AccountName -contains (Get-EveryoneAccountName) }
+    }
+
+    It 'leaves a reused share alone when Everyone is not on it' {
+        Mock Get-SmbShare { [pscustomobject]@{ Name = 'Media'; Path = $script:FolderFull } }
+        Mock Get-SmbShareAccess { [pscustomobject]@{ AccountName = $script:Qualified; AccessControlType = 'Allow'; AccessRight = 'Change' } }
+        $null = Invoke-TestHost
+        Should -Invoke Revoke-SmbShareAccess -Times 0 -Exactly
+    }
+
+    It 'passes a relative folder to the administrator window as a full path' {
+        Mock Test-IsAdmin { $false }
+        Mock Start-Process { [pscustomobject]@{ ExitCode = 0 } }
+        Push-Location -LiteralPath $TestDrive
+        try {
+            $null = Invoke-TestHost -Extra @{ Path = '.\Media' }
+        } finally {
+            Pop-Location
+        }
+        Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter { "$ArgumentList" -like "*-Path `"$(Join-Path -Path $TestDrive -ChildPath 'Media')`"*" }
     }
 
     It 'asks Windows for admin rights and never passes the password across' {
@@ -842,6 +927,23 @@ Describe 'Connect mode' {
     It 'refuses a blank password' {
         (Invoke-TestConnect -Extra @{ Password = [securestring]::new() }).ExitCode | Should -Be 1
         Should -Invoke Invoke-Native -Times 0 -Exactly -ParameterFilter { $FilePath -eq 'cmdkey.exe' }
+    }
+
+    It 'refuses a password with a double quote instead of saving a wrong one' {
+        (Invoke-TestConnect -Extra @{ Password = (ConvertTo-SecureString -String 'ab"c d' -AsPlainText -Force) }).ExitCode | Should -Be 1
+        Should -Invoke Invoke-Native -Times 0 -Exactly -ParameterFilter { $FilePath -eq 'cmdkey.exe' }
+    }
+
+    It 'keeps a password with a space and a trailing backslash intact under Windows PowerShell quoting' {
+        Mock Test-LegacyArgumentPassing { $true }
+        $null = Invoke-TestConnect -Extra @{ Password = (ConvertTo-SecureString -String 'ab c\' -AsPlainText -Force) }
+        Should -Invoke Invoke-Native -Times 1 -Exactly -ParameterFilter { $FilePath -eq 'cmdkey.exe' -and $Arguments[2] -ceq '/pass:ab c\\' }
+    }
+
+    It 'leaves arguments alone where PowerShell already escapes them' {
+        Mock Test-LegacyArgumentPassing { $false }
+        $null = Invoke-TestConnect -Extra @{ Password = (ConvertTo-SecureString -String 'ab c\' -AsPlainText -Force) }
+        Should -Invoke Invoke-Native -Times 1 -Exactly -ParameterFilter { $FilePath -eq 'cmdkey.exe' -and $Arguments[2] -ceq '/pass:ab c\' }
     }
 
     It 'rejects an invalid drive letter before doing anything' {
@@ -1145,6 +1247,15 @@ Describe 'Remove mode' {
 }
 
 Describe 'Menu' {
+    It 'prints Diagnose as text even with -Json, without changing the original options' {
+        Mock Read-Host { '3' }
+        Mock Invoke-DiagnoseMode { [pscustomobject]@{ ExitCode = 0; Output = $null } }
+        $context = New-RunContext -Json
+        (Invoke-Main -Context $context).ExitCode | Should -Be 0
+        Should -Invoke Invoke-DiagnoseMode -Times 1 -Exactly -ParameterFilter { -not $Context.Json }
+        $context.Json | Should -BeTrue
+    }
+
     It 'exits with code 2 when -Yes is given without a mode' {
         (Invoke-TestMode -Options @{ Mode = 'Menu' }).ExitCode | Should -Be 2
         Should -Invoke Read-Host -Times 0 -Exactly

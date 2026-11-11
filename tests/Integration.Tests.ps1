@@ -3,9 +3,10 @@
     ShareDoctor integration test (Pester 5 or later, -Tag Integration). See SPEC.md section 13.4.
 
     WARNING: this test MAKES REAL CHANGES to the PC it runs on. It creates the local account
-    'sdtest', the share 'SDTest', a saved sign-in, and may set networks to Private and enable
-    firewall rules and services. AfterAll always removes the account, the share, the saved
-    sign-in, the sign-in screen entry and the temp folder, even after a failure.
+    'sdtest', the share 'SDTest' and a saved sign-in for 127.0.0.1, and Host may set networks to
+    Private, enable firewall rules and start services. AfterAll always removes the account, the
+    share, the saved sign-in, the sign-in screen entry and the temp folder, and puts the network
+    types, firewall rules and services back the way they were, even after a failure.
 
     It runs in CI on windows-latest, which is elevated. Anywhere else it is skipped unless you
     opt in. On your own PC, run it only with the maintainer's explicit OK, from an elevated
@@ -27,7 +28,8 @@ Describe 'ShareDoctor end to end over SMB loopback' -Tag 'Integration' -Skip:(-n
 
         $script:Share = 'SDTest'
         $script:User = 'sdtest'
-        $script:Target = $env:COMPUTERNAME
+        # Connect by IP, so the saved sign-in can never replace one saved for this PC's own name.
+        $script:Target = '127.0.0.1'
         $script:Qualified = "$env:COMPUTERNAME\$($script:User)"
         $script:Unc = "\\$($script:Target)\$($script:Share)"
 
@@ -38,6 +40,20 @@ Describe 'ShareDoctor end to end over SMB loopback' -Tag 'Integration' -Skip:(-n
         if (Get-SmbShare -Name $script:Share -ErrorAction SilentlyContinue) {
             throw "A share named '$($script:Share)' already exists. Remove it before running this test."
         }
+        if ((Invoke-Native -FilePath 'cmdkey.exe' -Arguments @("/list:$($script:Target)")).Output -match "target=$([regex]::Escape($script:Target))") {
+            throw "A sign-in for $($script:Target) is already saved in Credential Manager. Refusing to overwrite it."
+        }
+
+        # What Host may change, so AfterAll can put it back.
+        $script:NetworkSnapshot = @(Get-NetConnectionProfile -ErrorAction SilentlyContinue |
+                ForEach-Object { [pscustomobject]@{ Index = $_.InterfaceIndex; Category = "$($_.NetworkCategory)" } })
+        $script:RuleSnapshot = @(foreach ($group in $FwGroupFileSharing, $FwGroupDiscovery) {
+                Get-NetFirewallRule -Group $group -ErrorAction SilentlyContinue | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Enabled = "$($_.Enabled)" } }
+            })
+        $script:ServiceSnapshot = @(foreach ($name in 'LanmanServer', 'FDResPub', 'fdPHost') {
+                Get-Service -Name $name -ErrorAction SilentlyContinue |
+                    ForEach-Object { [pscustomobject]@{ Name = $_.Name; StartType = "$($_.StartType)"; Running = ("$($_.Status)" -eq 'Running') } }
+            })
         $script:Ready = $true   # from here on, AfterAll cleans up
 
         $script:Folder = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('SDTest-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
@@ -73,7 +89,24 @@ Describe 'ShareDoctor end to end over SMB loopback' -Tag 'Integration' -Skip:(-n
             },
             { [void](Invoke-Native -FilePath 'cmdkey.exe' -Arguments @("/delete:$($script:Target)")) },
             { Remove-ItemProperty -Path $SignInListKey -Name $script:User -ErrorAction SilentlyContinue },
-            { if ($script:Folder -and (Test-Path -LiteralPath $script:Folder)) { Remove-Item -LiteralPath $script:Folder -Recurse -Force -ErrorAction Stop } }
+            { if ($script:Folder -and (Test-Path -LiteralPath $script:Folder)) { Remove-Item -LiteralPath $script:Folder -Recurse -Force -ErrorAction Stop } },
+            {
+                # Host only ever turns Public networks into Private ones.
+                foreach ($network in @($script:NetworkSnapshot | Where-Object { $_.Category -eq 'Public' })) {
+                    Set-NetConnectionProfile -InterfaceIndex $network.Index -NetworkCategory Public -ErrorAction Stop
+                }
+            },
+            {
+                $wereOff = @($script:RuleSnapshot | Where-Object { $_.Enabled -ne 'True' } | ForEach-Object { $_.Name })
+                if ($wereOff.Count -gt 0) { Disable-NetFirewallRule -Name $wereOff -ErrorAction Stop }
+            },
+            {
+                foreach ($service in $script:ServiceSnapshot) {
+                    $now = Get-Service -Name $service.Name
+                    if ("$($now.StartType)" -ne $service.StartType) { Set-Service -Name $service.Name -StartupType $service.StartType -ErrorAction Stop }
+                    if (-not $service.Running -and "$($now.Status)" -eq 'Running') { Stop-Service -Name $service.Name -Force -ErrorAction Stop }
+                }
+            }
         )
         foreach ($step in $steps) {
             try { & $step } catch { Write-Warning "A cleanup step failed: $($_.Exception.Message)" }
@@ -111,7 +144,7 @@ Describe 'ShareDoctor end to end over SMB loopback' -Tag 'Integration' -Skip:(-n
     It 'Connect reaches this PC, saves the sign-in and tests access' {
         $connectArguments = @{
             Mode = 'Connect'; Yes = $true; Computer = $script:Target; ShareName = $script:Share
-            UserName = $script:User; Password = $script:Password; NoDriveLetter = $true; NoOpen = $true
+            UserName = $script:Qualified; Password = $script:Password; NoDriveLetter = $true; NoOpen = $true
         }
         $lines = @(& $script:ScriptPath @connectArguments 6>&1 | ForEach-Object { "$_" })
         $exitCode = $LASTEXITCODE

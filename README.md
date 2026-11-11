@@ -103,6 +103,8 @@ $password = Read-Host 'Password for the share account' -AsSecureString
 .\ShareDoctor.ps1 -Mode Host -Path 'D:\Media' -ShareName Media -Password $password -Yes
 ```
 
+Host and Remove need admin rights. For a fully unattended run, start them from an administrator PowerShell window. From a normal window ShareDoctor opens an administrator window itself, and because it never passes a password between windows, that window asks for it.
+
 | Option | Used by | Meaning |
 |---|---|---|
 | `-Mode` | all | `Menu` (default), `Host`, `Connect`, `Diagnose` or `Remove`. |

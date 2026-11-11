@@ -300,6 +300,20 @@ function Get-PathCheck([bool]$Ok, [string]$Reason = '', [string]$FullPath = '', 
     return [pscustomobject]@{ Ok = $Ok; Reason = $Reason; FullPath = $FullPath; IsDriveRoot = $IsDriveRoot }
 }
 
+function Get-LinkedPathPart([string]$FullPath) {
+    # Returns the first part of the path that is a junction or symbolic link, or '' if none is.
+    $root = [System.IO.Path]::GetPathRoot($FullPath)
+    $current = $root
+    foreach ($part in $FullPath.Substring($root.Length).Split([char[]]'\', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+        $current = Join-Path -Path $current -ChildPath $part
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
+        if ($item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and ("$($item.LinkType)" -in 'Junction', 'SymbolicLink')) {
+            return $current
+        }
+    }
+    return ''
+}
+
 function Test-SharePath {
     # Checks a folder can safely be shared. Returns { Ok, Reason, FullPath, IsDriveRoot }.
     param(
@@ -320,6 +334,13 @@ function Test-SharePath {
         if ([System.IO.DriveInfo]::new($root).DriveType -eq [System.IO.DriveType]::Network) { return (Get-PathCheck -Ok $false -Reason $networkReason) }
     } catch {
         Write-Verbose "Could not read the drive type of $root`: $($_.Exception.Message)"
+    }
+
+    # A junction or symbolic link could point anywhere, even into the Windows folder, and
+    # folder permissions would land on its target. Only real folders are shared.
+    $link = Get-LinkedPathPart -FullPath $full
+    if ($link) {
+        return (Get-PathCheck -Ok $false -Reason "'$link' is a link (junction or symbolic link) to another folder. Share the real folder instead.")
     }
 
     $trimmed = $full.TrimEnd('\')
@@ -362,6 +383,21 @@ function Test-SecureStringMatch([securestring]$First, [securestring]$Second) {
         $a = $null
         $b = $null
     }
+}
+
+function Test-LegacyArgumentPassing {
+    # Windows PowerShell 5.1 and PowerShell 7.0-7.2 quote native arguments without escaping them.
+    if ($PSVersionTable.PSVersion.Major -lt 7) { return $true }
+    $mode = Get-Variable -Name PSNativeCommandArgumentPassing -ValueOnly -ErrorAction SilentlyContinue
+    return (-not $mode -or "$mode" -eq 'Legacy')
+}
+
+function Format-NativeArgument([string]$Value, [bool]$LegacyQuoting = (Test-LegacyArgumentPassing)) {
+    # With legacy quoting, an argument with a space is wrapped in quotes as it is, so a trailing
+    # backslash would escape the closing quote ("ab c\" reaches the program as: ab c"). Doubling the
+    # trailing backslashes makes the program receive the value unchanged.
+    if ($LegacyQuoting -and $Value -match '\s' -and $Value.EndsWith('\')) { return [regex]::Replace($Value, '(\\+)$', '$1$1') }
+    return $Value
 }
 
 function Format-QuotedArgument([string]$Value) {
@@ -485,6 +521,18 @@ function Invoke-Native {
     return [pscustomobject]@{ ExitCode = $code; Output = (@($output) -join "`n").Trim() }
 }
 
+function Resolve-TypedPath([string]$Path) {
+    # Makes a typed path absolute, relative to the current folder. The administrator window
+    # starts in C:\Windows\System32, so a relative path like .\Media must not be passed as it is.
+    $clean = ConvertTo-CleanPath -Path $Path
+    if (-not $clean -or $clean.StartsWith('\\')) { return $clean }
+    try {
+        return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($clean)
+    } catch {
+        return $clean
+    }
+}
+
 function Invoke-Elevated {
     # Re-runs ShareDoctor in an administrator window and returns that window's exit code.
     param(
@@ -492,7 +540,7 @@ function Invoke-Elevated {
         [Parameter(Mandatory)] [ValidateSet('Host', 'Remove')] [string]$Mode
     )
     $exe = (Get-Process -Id $PID).Path
-    $argumentLine = Get-ElevationArguments -ScriptPath $PSCommandPath -Mode $Mode -Path (ConvertTo-CleanPath -Path $Context.Path) `
+    $argumentLine = Get-ElevationArguments -ScriptPath $PSCommandPath -Mode $Mode -Path (Resolve-TypedPath -Path $Context.Path) `
         -ShareName $Context.ShareName.Trim() -UserName $Context.UserName.Trim() -ReadOnly:$Context.ReadOnly -Yes:$Context.Yes
     try {
         $process = Start-Process -FilePath $exe -ArgumentList $argumentLine -Verb RunAs -Wait -PassThru -ErrorAction Stop
@@ -705,6 +753,8 @@ function Initialize-ShareAccount {
             New-LocalUser -Name $name -Password $Account.NewPassword -PasswordNeverExpires -AccountNeverExpires `
                 -UserMayNotChangePassword -Description $AccountTag -ErrorAction Stop | Out-Null
         } catch {
+            # The name was already hidden in advance; take that back, since there is no account.
+            Remove-ItemProperty -Path $SignInListKey -Name $name -ErrorAction SilentlyContinue
             throw "Windows did not create the account '$name': $($_.Exception.Message)"
         }
         Write-Ok "Created the standard account '$name'."
@@ -721,17 +771,15 @@ function Initialize-ShareAccount {
 function Hide-FromSignInScreen([string]$Name) {
     # The share account is only used by other PCs over the network. Keeping it off the
     # sign-in screen means a PC whose own account has no password still starts straight
-    # to the desktop, exactly as before.
+    # to the desktop, exactly as before. This runs BEFORE the account is created, so a
+    # visible account never exists, not even for a moment.
     try {
         if (-not (Test-Path -Path $SignInListKey)) { New-Item -Path $SignInListKey -Force -ErrorAction Stop | Out-Null }
         New-ItemProperty -Path $SignInListKey -Name $Name -Value 0 -PropertyType DWord -Force -ErrorAction Stop | Out-Null
-        Write-Ok "'$Name' is hidden from the sign-in screen, so this PC still starts straight into your account."
-        return $true
     } catch {
-        Write-Bad "Could not hide '$Name' from the sign-in screen: $($_.Exception.Message)"
-        Write-Info 'Windows may now show an account picker at startup. Run Host again, or Remove to delete the account.'
-        return $false
+        throw "Could not hide '$Name' from the sign-in screen ($($_.Exception.Message)), so ShareDoctor stopped before creating or changing the account. This PC still starts straight into your account."
     }
+    Write-Ok "'$Name' is hidden from the sign-in screen, so this PC still starts straight into your account."
 }
 
 function Set-NetworkPrivate {
@@ -806,6 +854,28 @@ function Set-SharingService {
     }
 }
 
+function Remove-EveryoneAccess {
+    # An older setup may still let Everyone into a share Host now reuses. Offer to take that away,
+    # so only the share account has access (SPEC.md section 4).
+    param([Parameter(Mandatory)] $Context, [Parameter(Mandatory)] [string]$Name, [Parameter(Mandatory)] $Account)
+    $everyone = Get-EveryoneAccountName
+    $open = @(Get-SmbShareAccess -Name $Name -ErrorAction SilentlyContinue |
+            Where-Object { $_.AccountName -eq $everyone -and "$($_.AccessControlType)" -eq 'Allow' })
+    if ($open.Count -eq 0) { return }
+    Write-Warn "The share '$Name' also lets $everyone in, from an older setup."
+    $question = "Remove $everyone, so only '$($Account.Name)' can open it? Devices that relied on guest access (for example some TVs) will stop working."
+    if (-not (Confirm-Step -Context $Context -Question $question)) {
+        Write-Info "Left $everyone on '$Name'."
+        return
+    }
+    try {
+        Revoke-SmbShareAccess -Name $Name -AccountName $everyone -Force -ErrorAction Stop | Out-Null
+        Write-Ok "$everyone can no longer open '$Name'."
+    } catch {
+        Write-Warn "Could not remove $everyone from '$Name': $($_.Exception.Message)"
+    }
+}
+
 function Publish-Share {
     param([Parameter(Mandatory)] $Context, [Parameter(Mandatory)] $Folder, [Parameter(Mandatory)] [string]$Name, [Parameter(Mandatory)] $Account)
     Write-Step 'Sharing the folder'
@@ -817,6 +887,7 @@ function Publish-Share {
         }
         Grant-SmbShareAccess -Name $Name -AccountName $Account.Qualified -AccessRight $right -Force -ErrorAction Stop | Out-Null
         Write-Ok "Share '$Name' already existed - gave '$($Account.Name)' $right access."
+        Remove-EveryoneAccess -Context $Context -Name $Name -Account $Account
         return
     }
     # Only the share account gets access. Never Everyone.
@@ -867,8 +938,9 @@ function Invoke-HostMode {
     $shareName = Get-HostShareName -Context $Context -Folder $folder
     $account = Get-HostAccount -Context $Context
 
+    # Hide the name first: if that fails, Host stops before any account exists or changes.
+    Hide-FromSignInScreen -Name $account.Name
     Initialize-ShareAccount -Account $account
-    $hidden = Hide-FromSignInScreen -Name $account.Name
 
     Write-Step 'Network, firewall and services'
     Set-NetworkPrivate -Context $Context
@@ -878,7 +950,6 @@ function Invoke-HostMode {
     Publish-Share -Context $Context -Folder $folder -Name $shareName -Account $account
     Grant-FolderAccess -Context $Context -Folder $folder -Account $account
     Show-HostSummary -Name $shareName -Account $account
-    if (-not $hidden) { return 1 }
     return 0
 }
 
@@ -913,8 +984,15 @@ function Save-ShareCredential {
         Write-Bad (Get-ErrorAdvice -Code 1327)
         return $false
     }
-    $saved = Invoke-Native -FilePath 'cmdkey.exe' -Arguments @("/add:$Target", "/user:$User", "/pass:$plain")
+    if ($plain.Contains('"')) {
+        $plain = $null
+        Write-Bad 'This password contains a " character, which Windows cannot save for file sharing. Use the ShareDoctor share account instead: run Host on the PC with the files and choose a password without that character.'
+        return $false
+    }
+    $arguments = @("/add:$Target", "/user:$User", "/pass:$plain") | ForEach-Object { Format-NativeArgument -Value $_ }
     $plain = $null
+    $saved = Invoke-Native -FilePath 'cmdkey.exe' -Arguments $arguments
+    $arguments = $null
     if ($saved.ExitCode -ne 0) {
         Write-Bad "Could not save the sign-in: $($saved.Output)"
         return $false
@@ -1365,7 +1443,12 @@ function Show-Menu {
         switch ($choice) {
             '1' { return (Invoke-HostMode -Context $Context) }
             '2' { return (Invoke-ConnectMode -Context $Context) }
-            '3' { return (Invoke-DiagnoseMode -Context $Context).ExitCode }
+            '3' {
+                # The menu is interactive, so Diagnose always prints text here, even with -Json.
+                $textContext = $Context.PSObject.Copy()
+                $textContext.Json = $false
+                return (Invoke-DiagnoseMode -Context $textContext).ExitCode
+            }
             '4' { return (Invoke-RemoveMode -Context $Context) }
             'Q' { return 0 }
             default { Write-Warn 'Please type 1, 2, 3, 4 or Q.' }
