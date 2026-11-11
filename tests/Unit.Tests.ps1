@@ -269,6 +269,13 @@ Describe 'Test-SharePath' {
         }
     }
 
+    It 'refuses a folder whose path cannot be checked for links (fails closed)' {
+        Mock Get-Item { throw 'Access is denied' }
+        $check = Test-SharePath -Path $TestDrive
+        $check.Ok | Should -BeFalse
+        $check.Reason | Should -Match 'could not be checked'
+    }
+
     It 'makes a typed folder absolute before passing it to the administrator window' {
         Push-Location -LiteralPath $TestDrive
         try {
@@ -584,11 +591,25 @@ Describe 'Host mode' {
         Should -Invoke Grant-SmbShareAccess -Times 0 -Exactly
     }
 
-    It 'gives the account change rights on the folder' {
+    It 'gives the account change rights on the folder itself, never on a link target' {
         $null = Invoke-TestHost
         Should -Invoke Invoke-Native -Times 1 -Exactly -ParameterFilter {
-            $FilePath -eq 'icacls.exe' -and $Arguments[0] -eq $script:FolderFull -and $Arguments[1] -eq '/grant' -and $Arguments[2] -eq "$($script:Qualified):(OI)(CI)M"
+            $FilePath -eq 'icacls.exe' -and $Arguments[0] -eq $script:FolderFull -and $Arguments[1] -eq '/grant' -and
+            $Arguments[2] -eq "$($script:Qualified):(OI)(CI)M" -and $Arguments[3] -eq '/L'
         }
+    }
+
+    It 'stops before sharing when the folder changed after it was first checked' {
+        $script:PathChecks = 0
+        Mock Test-SharePath {
+            $script:PathChecks++
+            if ($script:PathChecks -eq 1) { return [pscustomobject]@{ Ok = $true; Reason = ''; FullPath = $script:FolderFull; IsDriveRoot = $false } }
+            return [pscustomobject]@{ Ok = $false; Reason = 'It is now a link.'; FullPath = ''; IsDriveRoot = $false }
+        }
+        (Invoke-TestHost).ExitCode | Should -Be 1
+        Should -Invoke New-SmbShare -Times 0 -Exactly
+        Should -Invoke Grant-SmbShareAccess -Times 0 -Exactly
+        Should -Invoke Invoke-Native -Times 0 -Exactly -ParameterFilter { $FilePath -eq 'icacls.exe' }
     }
 
     It 'uses read access and RX folder rights with -ReadOnly' {

@@ -301,13 +301,18 @@ function Get-PathCheck([bool]$Ok, [string]$Reason = '', [string]$FullPath = '', 
 }
 
 function Get-LinkedPathPart([string]$FullPath) {
-    # Returns the first part of the path that is a junction or symbolic link, or '' if none is.
+    # Returns the first part of the path that is a junction or symbolic link, or that cannot be
+    # checked (fail closed). Returns '' when every part is a real folder.
     $root = [System.IO.Path]::GetPathRoot($FullPath)
     $current = $root
     foreach ($part in $FullPath.Substring($root.Length).Split([char[]]'\', [System.StringSplitOptions]::RemoveEmptyEntries)) {
         $current = Join-Path -Path $current -ChildPath $part
-        $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
-        if ($item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and ("$($item.LinkType)" -in 'Junction', 'SymbolicLink')) {
+        try {
+            $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+        } catch {
+            return $current
+        }
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and ("$($item.LinkType)" -in 'Junction', 'SymbolicLink')) {
             return $current
         }
     }
@@ -340,7 +345,7 @@ function Test-SharePath {
     # folder permissions would land on its target. Only real folders are shared.
     $link = Get-LinkedPathPart -FullPath $full
     if ($link) {
-        return (Get-PathCheck -Ok $false -Reason "'$link' is a link (junction or symbolic link) to another folder. Share the real folder instead.")
+        return (Get-PathCheck -Ok $false -Reason "'$link' is a link (junction or symbolic link) to another folder, or could not be checked. Share the real folder instead.")
     }
 
     $trimmed = $full.TrimEnd('\')
@@ -876,9 +881,20 @@ function Remove-EveryoneAccess {
     }
 }
 
+function Assert-FolderUnchanged {
+    # Checks the folder again right before it is shared or its permissions change, in case it
+    # was swapped for a link (or removed) since it was first checked.
+    param([Parameter(Mandatory)] $Folder)
+    $again = Test-SharePath -Path $Folder.FullPath
+    if (-not $again.Ok -or $again.FullPath -ne $Folder.FullPath) {
+        throw "The folder changed while ShareDoctor was working, so it stopped before sharing it. $($again.Reason)"
+    }
+}
+
 function Publish-Share {
     param([Parameter(Mandatory)] $Context, [Parameter(Mandatory)] $Folder, [Parameter(Mandatory)] [string]$Name, [Parameter(Mandatory)] $Account)
     Write-Step 'Sharing the folder'
+    Assert-FolderUnchanged -Folder $Folder
     $right = if ($Context.ReadOnly) { 'Read' } else { 'Change' }
     $existing = Get-SmbShare -Name $Name -ErrorAction SilentlyContinue
     if ($existing) {
@@ -902,7 +918,9 @@ function Publish-Share {
 function Grant-FolderAccess {
     param([Parameter(Mandatory)] $Context, [Parameter(Mandatory)] $Folder, [Parameter(Mandatory)] $Account)
     $permission = if ($Context.ReadOnly) { 'RX' } else { 'M' }
-    $result = Invoke-Native -FilePath 'icacls.exe' -Arguments @($Folder.FullPath, '/grant', "$($Account.Qualified):(OI)(CI)$permission")
+    Assert-FolderUnchanged -Folder $Folder
+    # /L: if the folder were swapped for a link anyway, change the link itself, never its target.
+    $result = Invoke-Native -FilePath 'icacls.exe' -Arguments @($Folder.FullPath, '/grant', "$($Account.Qualified):(OI)(CI)$permission", '/L')
     if ($result.ExitCode -eq 0) {
         $can = if ($Context.ReadOnly) { 'read' } else { 'read and change' }
         Write-Ok "Folder permissions: '$($Account.Name)' can $can files."

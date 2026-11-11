@@ -198,7 +198,8 @@ If the current process isn't elevated, ShareDoctor re-launches itself with `Star
    - the folder must exist; resolve it to a full path
    - it must be a local drive path (`^[A-Za-z]:\\`); reject UNC paths
    - reject the system drive root and anything under `%windir%`
-   - reject a path where any part is a junction or symbolic link: its target could be anywhere, even under `%windir%`, and folder permissions would land on the target
+   - reject a path where any part is a junction or symbolic link: its target could be anywhere, even under `%windir%`, and folder permissions would land on the target. A part that cannot be checked is rejected too (fail closed).
+   - check the folder again right before step 7 and step 8, in case it was swapped for a link meanwhile, and run `icacls` with `/L` so a link is never followed
    - for the root of a non-system drive, warn: "This shares the whole D: drive. Setting permissions on a large drive can take a few minutes." Then ask for confirmation.
 2. **Share name.** The default is the folder name with these characters removed: `\ / : * ? " < > | [ ] + = ; ,`. Cap it at 80 characters. If it ends up empty, use `Shared`. A drive root gives `Drive<Letter>`, for example `DriveD`. Prompt with the default (`Share name other PCs will see [Media]`). Validate with `^[^\\/:*?"<>|]{1,80}$`.
 3. **Share account.** Validate the username: 1-20 characters, none of `\ / [ ] : ; | = , + * ? < > @ "`, and not ending in `.`.
@@ -218,7 +219,7 @@ If the current process isn't elevated, ShareDoctor re-launches itself with `Star
    - If a share with that name already exists for a **different** path, fail: "A share named 'X' already exists for <path>. Run again with a different -ShareName."
    - If it exists for the **same** path, run `Grant-SmbShareAccess -AccountName "<PC>\<user>" -AccessRight Change` (or `Read`) `-Force`. If the share still allows Everyone (SID `S-1-1-0`, from an older setup), warn and offer (default **Yes**) to remove it with `Revoke-SmbShareAccess`, mentioning that devices relying on guest access will stop working.
    - Otherwise run `New-SmbShare -Name -Path -Description 'Shared with ShareDoctor'` with `-ChangeAccess` (or `-ReadAccess` when `-ReadOnly`) set to `"<PC>\<user>"` only.
-8. **Folder permissions.** Run `icacls "<path>" /grant "<PC>\<user>:(OI)(CI)M"`, with `RX` instead of `M` for read-only. A non-zero exit code is a warning ("drives formatted FAT32/exFAT have no permissions - that is fine"), not a failure.
+8. **Folder permissions.** Run `icacls "<path>" /grant "<PC>\<user>:(OI)(CI)M" /L`, with `RX` instead of `M` for read-only. A non-zero exit code is a warning ("drives formatted FAT32/exFAT have no permissions - that is fine"), not a failure.
 9. **Summary.** Print:
    - `\\<PCNAME>\<Share>`, and `\\<IP>\<Share>` for each IPv4 address (excluding `127.*` and `169.254.*`)
    - `username: <PCNAME>\<user>`
