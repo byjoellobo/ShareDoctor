@@ -31,9 +31,9 @@ powershell -NoProfile -Command "Import-Module Pester -MinimumVersion 5.5; Invoke
 
 ## 2. Integration test (makes real changes)
 
-`tests/Integration.Tests.ps1` (Pester tag `Integration`) runs ShareDoctor for real against the same PC over SMB loopback: Host twice (to show it is idempotent), Connect, an access test as the share account, Diagnose `-Json`, then Remove. It creates the account `sdtest`, the share `SDTest`, a saved sign-in, and may set networks to Private and start services. `AfterAll` always cleans up, each step on its own, and only deletes the account if it carries the ShareDoctor marker. CI then checks that no `SDTest` share and no `sdtest` account are left behind.
+`tests/Integration.Tests.ps1` (Pester tag `Integration`) runs ShareDoctor for real against the same PC over SMB loopback, using `127.0.0.1`: Host twice (to show it is idempotent), Connect, an access test as the share account, Diagnose `-Json`, then Remove. It creates the account `sdtest`, the share `SDTest` and a saved sign-in for `127.0.0.1`, and Host may set networks to Private, enable firewall rules and start services. `AfterAll` always cleans up, each step on its own, and only deletes the account if it carries the ShareDoctor marker. It also puts network types, firewall rules and services back from a snapshot taken before the test. CI then checks that no `SDTest` share and no `sdtest` account are left behind.
 
-It is **skipped** unless `CI=true` (set by GitHub Actions) or `SHAREDOCTOR_RUN_INTEGRATION=1`. It refuses to run without admin rights, or when an `sdtest` account or `SDTest` share already exists. On a developer PC, run it only with the maintainer's explicit OK:
+It is **skipped** unless `CI=true` (set by GitHub Actions) or `SHAREDOCTOR_RUN_INTEGRATION=1`. It refuses to run without admin rights, or when an `sdtest` account, an `SDTest` share or a saved sign-in for `127.0.0.1` already exists. On a developer PC, run it only with the maintainer's explicit OK:
 
 ```powershell
 # Elevated PowerShell, on a PC where these changes are acceptable
@@ -60,6 +60,7 @@ Between two PCs the saved sign-in is used. That part is covered by manual cases 
 | Date | Runner | Result | Notes |
 |---|---|---|---|
 | 2026-11-11 | GitHub `windows-latest` (Windows PowerShell 5.1) | Pass, 6 of 6 | Explicit sign-in fallback in use (see above). The runner has no Private-only firewall rules, so Host left the firewall alone and warned, as designed. Nothing left behind. |
+| 2026-11-11 | GitHub `windows-latest` (Windows PowerShell 5.1) | Pass, 6 of 6 | After the review fixes: connects to `127.0.0.1`, restores settings, and `icacls /L` sets the folder permission (the share account reads and writes over SMB). Every cleanup step succeeded. |
 
 ## 3. Manual two-PC test matrix
 
