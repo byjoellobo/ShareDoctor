@@ -2,12 +2,13 @@
 
 All notable changes to ShareDoctor are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and ShareDoctor uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Each version's section becomes its GitHub Release notes, so links in it use full URLs.
 
 ## [Unreleased]
 
 ## [0.2.0] - 2026-11-11
 
-The first public release. It rebuilds the v0.1.0 prototype to the full specification in [SPEC.md](SPEC.md).
+The first public release. It rebuilds the v0.1.0 prototype to the full specification in [SPEC.md](https://github.com/byjoellobo/ShareDoctor/blob/v0.2.0/SPEC.md).
 
 ### Added
 
