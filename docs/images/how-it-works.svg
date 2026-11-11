@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="360" viewBox="0 0 880 360" role="img" aria-label="How ShareDoctor works. On the PC with the files, option 1 creates a hidden share account and shares the folder with it. On the other PC, option 2 saves that account's password once and maps a drive. Your own account is never touched, so both PCs still start straight to the desktop.">
+  <title>How ShareDoctor works</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4C9EF5"/>
+    </marker>
+  </defs>
+  <rect width="880" height="360" rx="14" fill="#0D1B2E"/>
+
+  <g font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif">
+    <!-- PC with the files -->
+    <rect x="24" y="24" width="350" height="252" rx="12" fill="#132741" stroke="#264A78"/>
+    <g transform="translate(44 44)" fill="none" stroke="#B7C7DD" stroke-width="2">
+      <rect width="34" height="24" rx="3"/>
+      <path d="M11 30 h12 M17 24 v6"/>
+    </g>
+    <text x="92" y="60" fill="#FFFFFF" font-size="18" font-weight="600">PC with the files</text>
+    <text x="92" y="80" fill="#8FA6C4" font-size="13">OFFICE-PC</text>
+    <rect x="44" y="96" width="310" height="30" rx="7" fill="#1F6FD1"/>
+    <text x="58" y="116" fill="#FFFFFF" font-size="14" font-weight="600">Option 1: Share a folder (Host)</text>
+    <g fill="#D6E1EF" font-size="13.5">
+      <text x="60" y="152">Creates a standard account, shareuser,</text>
+      <text x="60" y="170">hidden from the sign-in screen</text>
+      <text x="60" y="196">Shares D:\Media with that account only</text>
+      <text x="60" y="222">Sets the network to Private and allows</text>
+      <text x="60" y="240">File and Printer Sharing (it asks first)</text>
+    </g>
+    <g fill="#4C9EF5"><circle cx="50" cy="148" r="3"/><circle cx="50" cy="192" r="3"/><circle cx="50" cy="218" r="3"/></g>
+
+    <!-- Other PC -->
+    <rect x="506" y="24" width="350" height="252" rx="12" fill="#132741" stroke="#264A78"/>
+    <g transform="translate(526 44)" fill="none" stroke="#B7C7DD" stroke-width="2">
+      <rect width="34" height="22" rx="3"/>
+      <path d="M-4 28 h42"/>
+    </g>
+    <text x="574" y="60" fill="#FFFFFF" font-size="18" font-weight="600">The other PC</text>
+    <text x="574" y="80" fill="#8FA6C4" font-size="13">LAPTOP</text>
+    <rect x="526" y="96" width="310" height="30" rx="7" fill="#1F6FD1"/>
+    <text x="540" y="116" fill="#FFFFFF" font-size="14" font-weight="600">Option 2: Connect</text>
+    <g fill="#D6E1EF" font-size="13.5">
+      <text x="542" y="152">You type the share account's password</text>
+      <text x="542" y="170">once</text>
+      <text x="542" y="196">Windows Credential Manager saves it,</text>
+      <text x="542" y="214">so it never asks again</text>
+      <text x="542" y="240">Drive M: opens D:\Media after restarts</text>
+    </g>
+    <g fill="#4C9EF5"><circle cx="532" cy="148" r="3"/><circle cx="532" cy="192" r="3"/><circle cx="532" cy="236" r="3"/></g>
+
+    <!-- connection -->
+    <path d="M500 150 H380" stroke="#4C9EF5" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+    <text x="440" y="137" fill="#FFFFFF" font-size="11.5" text-anchor="middle" font-family="'Cascadia Mono', Consolas, monospace">\\OFFICE-PC\Media</text>
+    <text x="440" y="172" fill="#8FA6C4" font-size="12" text-anchor="middle">signs in as</text>
+    <text x="440" y="188" fill="#8FA6C4" font-size="12" text-anchor="middle">shareuser</text>
+
+    <!-- promise -->
+    <rect x="24" y="292" width="832" height="44" rx="10" fill="#10331F" stroke="#2EA043"/>
+    <circle cx="50" cy="314" r="11" fill="#3FB950"/>
+    <polyline points="44.5,314 48.5,318 56,310" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="72" y="319" fill="#E6F4EA" font-size="14.5">Your own account is never touched, so both PCs still start straight to the desktop.</text>
+  </g>
+</svg>

@@ -14,3 +14,6 @@ coverage.xml
 *.log
 Thumbs.db
 Desktop.ini
+
+# Browser automation output (local previews)
+.playwright-mcp/

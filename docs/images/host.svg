@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="876" height="710" viewBox="0 0 876 710" role="img" aria-label="Host mode on OFFICE-PC: creates a hidden share account, sets the network to Private, allows file sharing in the firewall, shares D:\Media and prints what to type on the other PC.">
+  <title>Host mode on OFFICE-PC: creates a hidden share account, sets the network to Private, allows file sharing in the firewall, shares D:\Media and prints what to type on the other PC.</title>
+  <defs><clipPath id="window"><rect width="876" height="710" rx="10"/></clipPath></defs>
+  <g clip-path="url(#window)">
+    <rect width="876" height="710" fill="#0C0C0C"/>
+    <rect width="876" height="34" fill="#202020"/>
+    <rect x="8" y="6" width="230" height="28" rx="6" fill="#0C0C0C"/>
+    <g fill="none" stroke="#5FB2F2" stroke-width="1.6"><rect x="20" y="14" width="14" height="11" rx="1.5"/><path d="M23 18.5l2.5 2-2.5 2M27.5 22.5h3"/></g>
+    <text x="42" y="24" fill="#E6E6E6" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="12.5">Administrator: Windows PowerShell</text>
+    <g stroke="#CCCCCC" stroke-width="1.2" fill="none"><path d="M754 17.5h10"/><rect x="799" y="12.5" width="10" height="10"/><path d="M844 12.5l10 10M854 12.5l-10 10"/></g>
+  </g>
+  <rect x="0.5" y="0.5" width="875" height="709" rx="10" fill="none" stroke="#3A3A3A"/>
+  <g font-family="'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, 'Liberation Mono', monospace" font-size="14" xml:space="preserve" style="white-space:pre">
+    <text x="18" y="62" fill="#CCCCCC" textLength="159.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">PS D:\ShareDoctor&gt; </text>
+    <text x="177.6" y="62" fill="#F9F1A5" textLength="361.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">.\ShareDoctor.ps1 -Mode Host -Path D:\Media</text>
+    <text x="18" y="100" fill="#61D6D6" textLength="151.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Folder to share</text>
+    <text x="34.8" y="119" fill="#16C60C" textLength="193.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Folder: D:\Media</text>
+    <text x="34.8" y="138" fill="#16C60C" textLength="201.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Share name: Media</text>
+    <text x="18" y="176" fill="#61D6D6" textLength="134.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Share account</text>
+    <text x="93.6" y="195" fill="#CCCCCC" textLength="739.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">ShareDoctor will create a standard (non-admin) account 'shareuser' that other PCs use to</text>
+    <text x="93.6" y="214" fill="#CCCCCC" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">sign in.</text>
+    <text x="34.8" y="233" fill="#16C60C" textLength="403.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Created the standard account 'shareuser'.</text>
+    <text x="34.8" y="252" fill="#16C60C" textLength="806.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] 'shareuser' is hidden from the sign-in screen, so this PC still starts straight into your</text>
+    <text x="93.6" y="271" fill="#16C60C" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">account.</text>
+    <text x="18" y="309" fill="#61D6D6" textLength="277.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Network, firewall and services</text>
+    <text x="34.8" y="328" fill="#16C60C" textLength="428.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Network 'Home Wi-Fi' (Wi-Fi) is now Private.</text>
+    <text x="34.8" y="347" fill="#16C60C" textLength="630" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Firewall: 'File and Printer Sharing' is allowed on Private networks.</text>
+    <text x="34.8" y="366" fill="#16C60C" textLength="571.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Firewall: 'Network Discovery' is allowed on Private networks.</text>
+    <text x="34.8" y="385" fill="#16C60C" textLength="546" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Service 'Server' is running (shares folders from this PC).</text>
+    <text x="34.8" y="404" fill="#16C60C" textLength="806.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Service 'Function Discovery Resource Publication' is running (makes this PC visible under</text>
+    <text x="93.6" y="423" fill="#16C60C" textLength="75.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">Network).</text>
+    <text x="34.8" y="442" fill="#16C60C" textLength="789.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Service 'Function Discovery Provider Host' is running (finds other PCs on the network).</text>
+    <text x="18" y="480" fill="#61D6D6" textLength="176.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Sharing the folder</text>
+    <text x="34.8" y="499" fill="#16C60C" textLength="571.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Shared 'D:\Media' as 'Media' (Change access for 'shareuser').</text>
+    <text x="34.8" y="518" fill="#16C60C" textLength="546" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Folder permissions: 'shareuser' can read and change files.</text>
+    <text x="18" y="556" fill="#61D6D6" textLength="352.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Done - how to open it from the other PC</text>
+    <text x="93.6" y="575" fill="#CCCCCC" textLength="478.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">In File Explorer's address bar, type:   \\OFFICE-PC\Media</text>
+    <text x="93.6" y="594" fill="#CCCCCC" textLength="504" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">or use the IP address:                  \\192.168.1.20\Media</text>
+    <text x="93.6" y="632" fill="#CCCCCC" textLength="369.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">Sign in with   username: OFFICE-PC\shareuser</text>
+    <text x="219.6" y="651" fill="#CCCCCC" textLength="562.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">password: the one you just chose   (tick &quot;Remember my credentials&quot;)</text>
+    <text x="93.6" y="689" fill="#CCCCCC" textLength="537.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">Easiest: run ShareDoctor on the other PC and choose 2 (Connect).</text>
+  </g>
+</svg>

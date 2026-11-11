@@ -33,14 +33,15 @@ Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
 **Safe to run anytime. Nothing on this PC changes:**
 ```powershell
 Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
-Invoke-Pester -Path .\tests\Unit.Tests.ps1 -Output Detailed
-powershell -NoProfile -Command "Import-Module Pester -MinimumVersion 5.5; Invoke-Pester -Path .\tests\Unit.Tests.ps1 -Output Detailed"
+Invoke-Pester -Path .\tests\Unit.Tests.ps1, .\tests\Build.Tests.ps1 -Output Detailed
+powershell -NoProfile -Command "Import-Module Pester -MinimumVersion 5.5; Invoke-Pester -Path .\tests\Unit.Tests.ps1, .\tests\Build.Tests.ps1 -Output Detailed"
 .\ShareDoctor.ps1 -Mode Diagnose -Yes -Json      # read-only
 ```
-Also run the parse and ASCII check from SPEC.md section 13.2 under both `powershell` and `pwsh`.
+The unit tests include the parse, ASCII and CRLF checks from SPEC.md section 13.2, so running them under both `powershell` and `pwsh` covers it. Tests run on Pester 5.5 or later (Pester 6 no longer falls back to the real command when no `-ParameterFilter` matches, so give such mocks a default).
 
 **These change this PC (they create an account, a share, and firewall/network settings):**
-Host mode, Remove mode, and `Invoke-Pester -Path .\tests\Integration.Tests.ps1 -Tag Integration` (admin).
+Host mode, Remove mode, and the integration test (admin; skipped unless `CI=true` or `$env:SHAREDOCTOR_RUN_INTEGRATION = '1'`):
+`Invoke-Pester -Path .\tests\Integration.Tests.ps1 -Tag Integration`.
 - **Ask the maintainer before running any of them here.** Prefer letting CI run the integration test.
 - If they are run, make sure cleanup ran afterwards. Check that no `SDTest` share and no `sdtest` account are left behind.
 

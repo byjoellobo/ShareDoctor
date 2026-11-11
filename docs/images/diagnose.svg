@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="876" height="748" viewBox="0 0 876 748" role="img" aria-label="Diagnose on the other PC: everything is fine locally, but \\OFFICE-PC\Media fails with Windows error 1272, and the summary explains that the other PC only offers guest access and how to fix it.">
+  <title>Diagnose on the other PC: everything is fine locally, but \\OFFICE-PC\Media fails with Windows error 1272, and the summary explains that the other PC only offers guest access and how to fix it.</title>
+  <defs><clipPath id="window"><rect width="876" height="748" rx="10"/></clipPath></defs>
+  <g clip-path="url(#window)">
+    <rect width="876" height="748" fill="#0C0C0C"/>
+    <rect width="876" height="34" fill="#202020"/>
+    <rect x="8" y="6" width="230" height="28" rx="6" fill="#0C0C0C"/>
+    <g fill="none" stroke="#5FB2F2" stroke-width="1.6"><rect x="20" y="14" width="14" height="11" rx="1.5"/><path d="M23 18.5l2.5 2-2.5 2M27.5 22.5h3"/></g>
+    <text x="42" y="24" fill="#E6E6E6" font-family="Segoe UI, system-ui, -apple-system, sans-serif" font-size="12.5">Windows PowerShell</text>
+    <g stroke="#CCCCCC" stroke-width="1.2" fill="none"><path d="M754 17.5h10"/><rect x="799" y="12.5" width="10" height="10"/><path d="M844 12.5l10 10M854 12.5l-10 10"/></g>
+  </g>
+  <rect x="0.5" y="0.5" width="875" height="747" rx="10" fill="none" stroke="#3A3A3A"/>
+  <g font-family="'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, 'Liberation Mono', monospace" font-size="14" xml:space="preserve" style="white-space:pre">
+    <text x="18" y="62" fill="#CCCCCC" textLength="159.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">PS D:\ShareDoctor&gt; </text>
+    <text x="177.6" y="62" fill="#F9F1A5" textLength="579.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">.\ShareDoctor.ps1 -Mode Diagnose -Computer OFFICE-PC -ShareName Media</text>
+    <text x="18" y="100" fill="#61D6D6" textLength="84" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== This PC</text>
+    <text x="93.6" y="119" fill="#CCCCCC" textLength="470.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">Microsoft Windows 11 Home (build 26100), PC name: LAPTOP</text>
+    <text x="93.6" y="138" fill="#CCCCCC" textLength="235.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">IP address(es): 192.168.1.23</text>
+    <text x="18" y="176" fill="#61D6D6" textLength="126" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Network type</text>
+    <text x="34.8" y="195" fill="#16C60C" textLength="394.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Network 'Home Wi-Fi' (Wi-Fi) is Private.</text>
+    <text x="18" y="233" fill="#61D6D6" textLength="92.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Firewall</text>
+    <text x="34.8" y="252" fill="#16C60C" textLength="546" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] 'File and Printer Sharing' is allowed on Private networks.</text>
+    <text x="34.8" y="271" fill="#16C60C" textLength="487.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] 'Network Discovery' is allowed on Private networks.</text>
+    <text x="18" y="309" fill="#61D6D6" textLength="92.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Services</text>
+    <text x="34.8" y="328" fill="#16C60C" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] 'Server' is running.</text>
+    <text x="34.8" y="347" fill="#16C60C" textLength="268.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] 'Workstation' is running.</text>
+    <text x="34.8" y="366" fill="#16C60C" textLength="504" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] 'Function Discovery Resource Publication' is running.</text>
+    <text x="18" y="404" fill="#61D6D6" textLength="126" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Your account</text>
+    <text x="93.6" y="423" fill="#CCCCCC" textLength="688.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">Local account 'Sam'. Accounts with no password can never be used over the network.</text>
+    <text x="18" y="461" fill="#61D6D6" textLength="210" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Folders this PC shares</text>
+    <text x="93.6" y="480" fill="#CCCCCC" textLength="42" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">None.</text>
+    <text x="18" y="518" fill="#61D6D6" textLength="193.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== ShareDoctor accounts</text>
+    <text x="93.6" y="537" fill="#CCCCCC" textLength="336" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">No ShareDoctor share account on this PC.</text>
+    <text x="18" y="575" fill="#61D6D6" textLength="218.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Connection to OFFICE-PC</text>
+    <text x="34.8" y="594" fill="#16C60C" textLength="235.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] Found at 192.168.1.20</text>
+    <text x="34.8" y="613" fill="#16C60C" textLength="403.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[ OK ] It is accepting file sharing connections.</text>
+    <text x="34.8" y="632" fill="#E74856" textLength="462" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">[FAIL] \\OFFICE-PC\Media fails with Windows error 1272.</text>
+    <text x="18" y="670" fill="#61D6D6" textLength="84" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">== Summary</text>
+    <text x="34.8" y="689" fill="#F9F1A5" textLength="814.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">1. The other PC only offers guest (no password) access, and this PC refuses guest connections for</text>
+    <text x="60" y="708" fill="#F9F1A5" textLength="764.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">security. Run ShareDoctor option 1 (Host) on the other PC so it has a proper share account,</text>
+    <text x="60" y="727" fill="#F9F1A5" textLength="260.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve" style="white-space:pre">then connect with that account.</text>
+  </g>
+</svg>
