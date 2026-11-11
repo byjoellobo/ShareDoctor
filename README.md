@@ -75,7 +75,7 @@ Windows 10 or 11 (Home, Pro, Enterprise or Education) with the built-in Windows 
 
 ## Status
 
-v0.1.0, early. If something doesn't work, please open an issue with your Windows version and the **Diagnose** output.
+v0.2.0. If something doesn't work, please open an issue with your Windows version and the **Diagnose** output.
 
 ## License
 

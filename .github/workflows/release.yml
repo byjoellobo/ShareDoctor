@@ -1,0 +1,75 @@
+name: Release
+
+# Push a tag such as v0.2.0 to publish a release (see CLAUDE.md "To release").
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Build and publish
+    needs: checks
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the script version matches the tag
+        run: |
+          . ./build/Build-Release.ps1
+          $version = Get-ShareDoctorVersion -ScriptPath ./ShareDoctor.ps1
+          if ("v$version" -ne $env:TAG) {
+            Write-Output "::error::Tag $env:TAG does not match `$ShareDoctorVersion = '$version' in ShareDoctor.ps1."
+            exit 1
+          }
+          Write-Output "Releasing ShareDoctor $version"
+
+      - name: Build the release zip
+        run: ./build/Build-Release.ps1 -ExpectedVersion $env:TAG -NotesPath dist/release-notes.md
+
+      - name: Add build details to the release notes
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          $zip = Get-ChildItem -Path dist -Filter 'ShareDoctor-*.zip' | Select-Object -First 1
+          $hash = (Get-Content -Path "$($zip.FullName).sha256" -Raw).Split(' ')[0]
+          $footer = @(
+            '',
+            '---',
+            '',
+            '**Download:** `' + $zip.Name + '` below. Unzip it on both PCs, then follow the [Quick start](https://github.com/' + $env:REPO + '#quick-start).',
+            '',
+            "Build $env:RUN_NUMBER from commit [$($env:COMMIT.Substring(0, 7))](https://github.com/$env:REPO/commit/$env:COMMIT).",
+            '',
+            'SHA-256: `' + $hash + '`'
+          ) -join "`n"
+          Add-Content -Path dist/release-notes.md -Value $footer -Encoding utf8
+          Get-Content -Path dist/release-notes.md
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(Get-ChildItem -Path dist -Filter 'ShareDoctor-*' | ForEach-Object { $_.FullName })
+          gh release create $env:TAG @assets --title "ShareDoctor $env:TAG" --notes-file dist/release-notes.md --verify-tag
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

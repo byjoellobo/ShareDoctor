@@ -89,7 +89,7 @@ jobs:
           Import-Module Pester -MinimumVersion 5.5
           New-Item -ItemType Directory -Force -Path TestResults | Out-Null
           $config = New-PesterConfiguration
-          $config.Run.Path = '.\tests\Unit.Tests.ps1'
+          $config.Run.Path = @('.\tests\Unit.Tests.ps1', '.\tests\Build.Tests.ps1')
           $config.Run.Throw = $true
           $config.Output.Verbosity = 'Detailed'
           $config.TestResult.Enabled = $true
@@ -151,3 +151,22 @@ jobs:
           name: test-results-integration-powershell
           path: TestResults/
           if-no-files-found: warn
+
+  package:
+    name: Package (build ${{ github.run_number }})
+    needs: [integration]
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the zip
+        shell: pwsh
+        run: ./build/Build-Release.ps1 -BuildNumber ${{ github.run_number }}
+
+      - name: Upload the zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: ShareDoctor-build-${{ github.run_number }}
+          path: dist/
+          if-no-files-found: error
