@@ -99,11 +99,48 @@ $SignInErrorCodes = @(5, 86, 1326, 1327, 1330, 1331, 1909)
 
 #region ---------- output ----------
 
+function Split-TextLine([string]$Text, [int]$Width) {
+    # Word-wraps text into lines of at most $Width characters. Words longer than that stay whole.
+    $lines = @()
+    foreach ($paragraph in ("$Text" -split "`r?`n")) {
+        if ($paragraph.Length -le $Width) { $lines += $paragraph; continue }
+        $indent = [regex]::Match($paragraph, '^\s*').Value
+        $current = ''
+        foreach ($word in ($paragraph.Trim() -split ' ' | Where-Object { $_ })) {
+            if (-not $current) { $current = $indent + $word }
+            elseif (($current.Length + 1 + $word.Length) -le $Width) { $current += " $word" }
+            else { $lines += $current; $current = $indent + $word }
+        }
+        $lines += $current
+    }
+    return $lines
+}
+
+function Get-ConsoleWidth {
+    try {
+        $width = $Host.UI.RawUI.WindowSize.Width
+        if ($width -ge 40) { return [int]$width }
+    } catch {
+        Write-Verbose 'No console window size is available.'
+    }
+    return 120
+}
+
+function Write-Wrapped([string]$Prefix, [string]$Text, [string]$Color = '') {
+    # Writes text after a prefix such as "  [ OK ] ", wrapping long lines under the text.
+    $lines = @(Split-TextLine -Text $Text -Width ((Get-ConsoleWidth) - $Prefix.Length - 1))
+    $indent = ' ' * $Prefix.Length
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $lead = if ($i -eq 0) { $Prefix } else { $indent }
+        if ($Color) { Write-Host "$lead$($lines[$i])" -ForegroundColor $Color } else { Write-Host "$lead$($lines[$i])" }
+    }
+}
+
 function Write-Step([string]$Text) { Write-Host ''; Write-Host "== $Text" -ForegroundColor Cyan }
-function Write-Ok([string]$Text) { Write-Host "  [ OK ] $Text" -ForegroundColor Green }
-function Write-Warn([string]$Text) { Write-Host "  [WARN] $Text" -ForegroundColor Yellow }
-function Write-Bad([string]$Text) { Write-Host "  [FAIL] $Text" -ForegroundColor Red }
-function Write-Info([string]$Text) { Write-Host "         $Text" }
+function Write-Ok([string]$Text) { Write-Wrapped -Prefix '  [ OK ] ' -Text $Text -Color 'Green' }
+function Write-Warn([string]$Text) { Write-Wrapped -Prefix '  [WARN] ' -Text $Text -Color 'Yellow' }
+function Write-Bad([string]$Text) { Write-Wrapped -Prefix '  [FAIL] ' -Text $Text -Color 'Red' }
+function Write-Info([string]$Text) { Write-Wrapped -Prefix '         ' -Text $Text }
 
 #endregion
 
@@ -1226,7 +1263,7 @@ function Write-DiagnoseReport($Report) {
         Write-Ok 'No problems found.'
         return
     }
-    for ($i = 0; $i -lt $fixes.Count; $i++) { Write-Host "  $($i + 1). $($fixes[$i])" -ForegroundColor Yellow }
+    for ($i = 0; $i -lt $fixes.Count; $i++) { Write-Wrapped -Prefix "  $($i + 1). " -Text $fixes[$i] -Color 'Yellow' }
 }
 
 function Invoke-DiagnoseMode {

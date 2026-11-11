@@ -453,6 +453,38 @@ Describe 'Drive letters and usernames' {
     }
 }
 
+Describe 'Console output' {
+    It 'leaves text that fits unchanged, spaces included' {
+        Split-TextLine -Text 'Media  ->  D:\Media' -Width 40 | Should -BeExactly 'Media  ->  D:\Media'
+    }
+
+    It 'wraps long text at spaces without going over the width' {
+        $text = 'The other PC only offers guest access, and this PC refuses guest connections for security.'
+        $lines = @(Split-TextLine -Text $text -Width 30)
+        $lines.Count | Should -BeGreaterThan 2
+        foreach ($line in $lines) { $line.Length | Should -BeLessOrEqual 30 }
+        ($lines -join ' ') | Should -BeExactly $text
+    }
+
+    It 'keeps a word longer than the width whole' {
+        @(Split-TextLine -Text 'see \\VERY-LONG-COMPUTER-NAME\Share now' -Width 10) | Should -Contain '\\VERY-LONG-COMPUTER-NAME\Share'
+    }
+
+    It 'keeps the indent of an indented line' {
+        @(Split-TextLine -Text '    one two three four' -Width 12) | Should -Be @('    one two', '    three', '    four')
+    }
+
+    It 'wraps status lines under the text, not under the [ OK ] tag' {
+        $script:Written = [System.Collections.Generic.List[string]]::new()
+        Mock Write-Host { $script:Written.Add("$Object") }
+        Mock Get-ConsoleWidth { 40 }
+        Write-Warn 'This sentence is long enough that it needs to wrap onto more lines.'
+        $script:Written[0] | Should -BeLike '  `[WARN`] This sentence*'
+        $script:Written[1] | Should -Match '^ {9}\S'
+        foreach ($line in $script:Written) { $line.Length | Should -BeLessOrEqual 39 }
+    }
+}
+
 Describe 'Host mode' {
     BeforeAll {
         $script:Folder = Join-Path -Path $TestDrive -ChildPath 'Media'
