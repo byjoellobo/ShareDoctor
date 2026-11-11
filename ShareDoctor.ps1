@@ -723,11 +723,24 @@ function Set-NetworkPrivate {
     }
 }
 
+function Test-PrivateOnlyRule($Rule) {
+    # True for rules that cover Private networks but never Public ones. "Any" includes Public.
+    $profiles = "$($Rule.Profile)"
+    return ($profiles -match 'Private' -and $profiles -notmatch 'Public|Any')
+}
+
 function Enable-SharingFirewall {
     foreach ($group in @($FwGroupFileSharing, $FwGroupDiscovery)) {
-        # Only rules for Private (or any) networks. Public-only and Domain-only rules stay as they are.
-        $rules = @(Get-NetFirewallRule -Group $group -ErrorAction SilentlyContinue | Where-Object { "$($_.Profile)" -match 'Private|Any' })
-        if ($rules.Count -eq 0) { Write-Warn "Firewall rule group $group was not found on this PC."; continue }
+        $all = @(Get-NetFirewallRule -Group $group -ErrorAction SilentlyContinue)
+        if ($all.Count -eq 0) { Write-Warn "Firewall rule group $group was not found on this PC."; continue }
+        # Only rules for Private networks. Rules that also cover Public networks stay as they are,
+        # so sharing never opens up on a cafe or hotel Wi-Fi.
+        $rules = @($all | Where-Object { Test-PrivateOnlyRule -Rule $_ })
+        if ($rules.Count -eq 0) {
+            Write-Warn "'$($all[0].DisplayGroup)' has no firewall rules for Private networks only, so ShareDoctor left it alone."
+            Write-Info 'Allow it for Private networks in Windows Security > Firewall & network protection.'
+            continue
+        }
         try {
             Enable-NetFirewallRule -Name @($rules | ForEach-Object { $_.Name }) -ErrorAction Stop
             Write-Ok "Firewall: '$($rules[0].DisplayGroup)' is allowed on Private networks."

@@ -210,7 +210,7 @@ If the current process isn't elevated, ShareDoctor re-launches itself with `Star
    - `Public`: ask "Network 'X' is set to Public, which hides this PC and blocks sharing. Set it to Private? Only do this on a network you trust (home/office)." If yes, run `Set-NetConnectionProfile -InterfaceIndex <i> -NetworkCategory Private`. If no, warn that other PCs won't reach the share over it.
    - `DomainAuthenticated`: leave it alone and note that it is managed by IT.
    - `Private`: OK.
-5. **Firewall.** For each of the two group IDs, run `Get-NetFirewallRule -Group <id>`, keep only the rules whose `Profile` includes `Private` or `Any`, and pipe them to `Enable-NetFirewallRule`. Don't touch Public-only or Domain-only rules.
+5. **Firewall.** For each of the two group IDs, run `Get-NetFirewallRule -Group <id>`, keep only the rules whose `Profile` includes `Private` and does **not** include `Public` (`Any` counts as including Public), and enable them by name with `Enable-NetFirewallRule -Name`. Never touch rules that cover Public networks, so sharing never opens up on a cafe or hotel Wi-Fi. If a group has no such rule, warn and leave it alone. (Windows 10/11 ship separate Private rules in both groups.)
 6. **Services.** For `LanmanServer`, `FDResPub` and `fdPHost`: if the startup type isn't Automatic, set it to Automatic, and start the service if it isn't running. A failure is a warning, not an abort.
 7. **Share.**
    - If a share with that name already exists for a **different** path, fail: "A share named 'X' already exists for <path>. Run again with a different -ShareName."

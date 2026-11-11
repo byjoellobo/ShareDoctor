@@ -471,7 +471,9 @@ Describe 'Host mode' {
         Mock Get-NetConnectionProfile { Get-TestNetProfile -Category 'Private' }
         Mock Get-NetFirewallRule {
             Get-TestFirewallRule -Name 'RULE-PRIVATE' -Profiles 'Private' -Enabled 'False'
+            Get-TestFirewallRule -Name 'RULE-DOMAIN-PRIVATE' -Profiles 'Domain, Private' -Enabled 'False'
             Get-TestFirewallRule -Name 'RULE-ANY' -Profiles 'Any' -Enabled 'False'
+            Get-TestFirewallRule -Name 'RULE-PRIVATE-PUBLIC' -Profiles 'Private, Public' -Enabled 'False'
             Get-TestFirewallRule -Name 'RULE-PUBLIC' -Profiles 'Public' -Enabled 'False'
             Get-TestFirewallRule -Name 'RULE-DOMAIN' -Profiles 'Domain' -Enabled 'False'
         }
@@ -556,12 +558,27 @@ Describe 'Host mode' {
         Should -Invoke Set-NetConnectionProfile -Times 0 -Exactly
     }
 
-    It 'enables only the Private and Any firewall rules of both groups' {
+    It 'enables only the Private-network firewall rules of both groups' {
         $null = Invoke-TestHost
         Should -Invoke Get-NetFirewallRule -Times 1 -Exactly -ParameterFilter { $Group -contains '@FirewallAPI.dll,-28502' }
         Should -Invoke Get-NetFirewallRule -Times 1 -Exactly -ParameterFilter { $Group -contains '@FirewallAPI.dll,-32752' }
-        Should -Invoke Enable-NetFirewallRule -Times 2 -Exactly -ParameterFilter { (@($Name) -join ',') -eq 'RULE-PRIVATE,RULE-ANY' }
-        Should -Invoke Enable-NetFirewallRule -Times 0 -Exactly -ParameterFilter { $Name -contains 'RULE-PUBLIC' -or $Name -contains 'RULE-DOMAIN' }
+        Should -Invoke Enable-NetFirewallRule -Times 2 -Exactly -ParameterFilter { (@($Name) -join ',') -eq 'RULE-PRIVATE,RULE-DOMAIN-PRIVATE' }
+    }
+
+    It 'never enables a firewall rule that also covers Public networks' {
+        $null = Invoke-TestHost
+        Should -Invoke Enable-NetFirewallRule -Times 0 -Exactly -ParameterFilter {
+            $Name -contains 'RULE-ANY' -or $Name -contains 'RULE-PRIVATE-PUBLIC' -or $Name -contains 'RULE-PUBLIC' -or $Name -contains 'RULE-DOMAIN'
+        }
+    }
+
+    It 'leaves a firewall group alone when it has no Private-only rules' {
+        Mock Get-NetFirewallRule {
+            Get-TestFirewallRule -Name 'RULE-ANY' -Profiles 'Any' -Enabled 'False'
+            Get-TestFirewallRule -Name 'RULE-PUBLIC' -Profiles 'Public' -Enabled 'False'
+        }
+        (Invoke-TestHost).ExitCode | Should -Be 0
+        Should -Invoke Enable-NetFirewallRule -Times 0 -Exactly
     }
 
     It 'sets the sharing services to start automatically and starts them' {
