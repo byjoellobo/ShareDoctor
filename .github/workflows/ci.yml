@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: Lint (PSScriptAnalyzer)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Lint
+        shell: pwsh
+        run: |
+          $results = @(Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1)
+          foreach ($r in $results) {
+            $file = Resolve-Path -Relative -Path $r.ScriptPath
+            Write-Output "::error file=$file,line=$($r.Line),col=$($r.Column),title=$($r.RuleName)::$($r.Message)"
+          }
+          if ($results.Count -gt 0) {
+            $results | Format-Table -AutoSize -Wrap RuleName, ScriptName, Line, Message | Out-String -Width 250
+            exit 1
+          }
+          Write-Output "PSScriptAnalyzer $((Get-Module PSScriptAnalyzer).Version): no findings."
+
+  test:
+    name: Unit tests (${{ matrix.shell }})
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [powershell, pwsh]
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Pester
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+          Install-Module Pester -MinimumVersion 5.5 -Force -SkipPublisherCheck -Scope CurrentUser
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          Import-Module Pester -MinimumVersion 5.5
+          Write-Output "PowerShell $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition)), Pester $((Get-Module Pester).Version)"
+
+      - name: Parse, ASCII and line-ending check
+        run: |
+          $latin1 = [System.Text.Encoding]::GetEncoding('iso-8859-1')
+          $problems = @()
+          $files = @(Get-ChildItem -Recurse -File -Include *.ps1, *.psd1, *.cmd | Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' })
+          foreach ($file in $files) {
+            $name = Resolve-Path -Relative -Path $file.FullName
+            $text = [System.IO.File]::ReadAllText($file.FullName, $latin1)
+            if ($text -match '[^\x00-\x7F]') { $problems += "${name}: contains non-ASCII characters" }
+            if ($text -match '(?<!\r)\n') { $problems += "${name}: has LF-only line endings (CRLF required)" }
+            if ($file.Extension -ne '.cmd') {
+              $parseErrors = $null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$parseErrors)
+              foreach ($e in $parseErrors) { $problems += "${name}:$($e.Extent.StartLineNumber): $($e.Message)" }
+            }
+          }
+          if ($problems.Count -gt 0) {
+            $problems | ForEach-Object { Write-Output "::error::$_" }
+            exit 1
+          }
+          Write-Output "Checked $($files.Count) files with PowerShell $($PSVersionTable.PSVersion): all parse, ASCII only, CRLF."
+
+      - name: Unit tests
+        run: |
+          Import-Module Pester -MinimumVersion 5.5
+          New-Item -ItemType Directory -Force -Path TestResults | Out-Null
+          $config = New-PesterConfiguration
+          $config.Run.Path = '.\tests\Unit.Tests.ps1'
+          $config.Run.Throw = $true
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.TestResult.OutputPath = 'TestResults\unit-${{ matrix.shell }}.xml'
+          Invoke-Pester -Configuration $config
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-unit-${{ matrix.shell }}
+          path: TestResults/
+          if-no-files-found: warn

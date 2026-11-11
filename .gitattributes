@@ -1,0 +1,13 @@
+* text=auto
+
+# Windows PowerShell 5.1 and cmd.exe expect CRLF.
+*.ps1  text eol=crlf
+*.psd1 text eol=crlf
+*.cmd  text eol=crlf
+
+*.md   text eol=lf
+*.yml  text eol=lf
+*.svg  text eol=lf
+
+*.png  binary
+*.zip  binary

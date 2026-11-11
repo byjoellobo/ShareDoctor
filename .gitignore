@@ -1,0 +1,16 @@
+# Build output
+dist/
+
+# Test results
+TestResults/
+*.TestResults.xml
+testResults.xml
+coverage.xml
+
+# Local tool state
+.remember/
+.vscode/
+.idea/
+*.log
+Thumbs.db
+Desktop.ini
