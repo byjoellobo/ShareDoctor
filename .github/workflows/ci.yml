@@ -104,3 +104,50 @@ jobs:
           name: test-results-unit-${{ matrix.shell }}
           path: TestResults/
           if-no-files-found: warn
+
+  integration:
+    name: Integration test (powershell, real changes)
+    needs: [lint, test]
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Pester
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+          Install-Module Pester -MinimumVersion 5.5 -Force -SkipPublisherCheck -Scope CurrentUser
+
+      - name: Integration test (SMB loopback, makes real changes on the runner)
+        run: |
+          Import-Module Pester -MinimumVersion 5.5
+          New-Item -ItemType Directory -Force -Path TestResults | Out-Null
+          $config = New-PesterConfiguration
+          $config.Run.Path = '.\tests\Integration.Tests.ps1'
+          $config.Run.Throw = $true
+          $config.Filter.Tag = 'Integration'
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.TestResult.OutputPath = 'TestResults\integration-powershell.xml'
+          Invoke-Pester -Configuration $config
+
+      - name: Check that cleanup ran
+        if: always()
+        run: |
+          $leftovers = @()
+          if (Get-SmbShare -Name SDTest -ErrorAction SilentlyContinue) { $leftovers += 'share SDTest' }
+          if (Get-LocalUser -Name sdtest -ErrorAction SilentlyContinue) { $leftovers += 'account sdtest' }
+          if ($leftovers.Count -gt 0) { Write-Output "::error::Integration test left behind: $($leftovers -join ', ')"; exit 1 }
+          Write-Output 'No SDTest share and no sdtest account left behind.'
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-integration-powershell
+          path: TestResults/
+          if-no-files-found: warn
