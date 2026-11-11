@@ -126,6 +126,30 @@ Describe 'Release zip' {
     }
 }
 
+Describe 'Get-ReleaseFooter' {
+    BeforeAll {
+        $script:Footer = Get-ReleaseFooter -ZipName 'ShareDoctor-v0.2.0.zip' -Sha256 ('ab' * 32) -Repository 'owner/ShareDoctor' `
+            -Commit '31e12090a3796843c37eaa827ee80248dd345005' -RunNumber '4'
+        $script:FooterLines = $script:Footer -split "`n"
+    }
+
+    It 'keeps every sentence on one line' {
+        $script:FooterLines | Should -Contain '**Download:** `ShareDoctor-v0.2.0.zip` below. Unzip it on both PCs, then follow the [Quick start](https://github.com/owner/ShareDoctor#quick-start).'
+        $script:FooterLines | Should -Contain 'Release build 4 from commit [31e1209](https://github.com/owner/ShareDoctor/commit/31e12090a3796843c37eaa827ee80248dd345005).'
+        $script:FooterLines | Should -Contain ('SHA-256: `' + ('ab' * 32) + '`')
+    }
+
+    It 'starts with a separator and has no stray lines' {
+        $script:FooterLines.Count | Should -Be 8
+        $script:FooterLines[1] | Should -BeExactly '---'
+        @($script:FooterLines | Where-Object { $_ -eq '`' }).Count | Should -Be 0
+    }
+
+    It 'refuses something that is not a commit hash' {
+        { Get-ReleaseFooter -ZipName 'a.zip' -Sha256 'x' -Repository 'o/r' -Commit 'main; rm' -RunNumber '1' } | Should -Throw
+    }
+}
+
 Describe 'Invoke-Build' {
     It 'builds with the tag as the expected version and writes the release notes' {
         $outDir = Join-Path -Path $TestDrive -ChildPath 'tagged'

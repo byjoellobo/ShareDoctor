@@ -85,6 +85,29 @@ function Get-ChangelogSection {
     return $text
 }
 
+function Get-ReleaseFooter {
+    # The end of the GitHub Release notes: download hint, build details and checksum.
+    param(
+        [Parameter(Mandatory)] [string]$ZipName,
+        [Parameter(Mandatory)] [string]$Sha256,
+        [Parameter(Mandatory)] [string]$Repository,
+        [Parameter(Mandatory)] [ValidatePattern('^[0-9a-f]{7,40}$')] [string]$Commit,
+        [Parameter(Mandatory)] [string]$RunNumber
+    )
+    # Each line is built in parentheses: in an array, the comma binds tighter than +.
+    $lines = @(
+        '',
+        '---',
+        '',
+        ('**Download:** `{0}` below. Unzip it on both PCs, then follow the [Quick start](https://github.com/{1}#quick-start).' -f $ZipName, $Repository),
+        '',
+        ('Release build {0} from commit [{1}](https://github.com/{2}/commit/{3}).' -f $RunNumber, $Commit.Substring(0, 7), $Repository, $Commit),
+        '',
+        ('SHA-256: `{0}`' -f $Sha256)
+    )
+    return ($lines -join "`n")
+}
+
 function New-ReleasePackage {
     # Writes the zip and its .sha256 file. Returns { ZipPath, Sha256, ShaPath }.
     param(

@@ -51,18 +51,10 @@ jobs:
           COMMIT: ${{ github.sha }}
           REPO: ${{ github.repository }}
         run: |
+          . ./build/Build-Release.ps1
           $zip = Get-ChildItem -Path dist -Filter 'ShareDoctor-*.zip' | Select-Object -First 1
           $hash = (Get-Content -Path "$($zip.FullName).sha256" -Raw).Split(' ')[0]
-          $footer = @(
-            '',
-            '---',
-            '',
-            '**Download:** `' + $zip.Name + '` below. Unzip it on both PCs, then follow the [Quick start](https://github.com/' + $env:REPO + '#quick-start).',
-            '',
-            "Build $env:RUN_NUMBER from commit [$($env:COMMIT.Substring(0, 7))](https://github.com/$env:REPO/commit/$env:COMMIT).",
-            '',
-            'SHA-256: `' + $hash + '`'
-          ) -join "`n"
+          $footer = Get-ReleaseFooter -ZipName $zip.Name -Sha256 $hash -Repository $env:REPO -Commit $env:COMMIT -RunNumber $env:RUN_NUMBER
           Add-Content -Path dist/release-notes.md -Value $footer -Encoding utf8
           Get-Content -Path dist/release-notes.md
 
